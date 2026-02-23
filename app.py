@@ -90,13 +90,14 @@ def api_grafico_comparacao():
     )
 
     fig.update_layout(
-     title="Custo de vida estimado por cidade",
-     title_x=0.5,  # ← adicione essa linha
-     xaxis_title="Cidade",
-     yaxis_title="Custo mensal (R$)",
-      template="plotly_white",
-     showlegend=False,
-      xaxis_tickangle=-30,
+        title="Custo de vida estimado por cidade",
+        title_x=0.5,
+        title_xanchor="center",
+        xaxis_title="Cidade",
+        yaxis_title="Custo mensal (R$)",
+        template="plotly_white",
+        showlegend=False,
+        xaxis_tickangle=-30,
     )
 
     return jsonify({"grafico": json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)})
@@ -123,8 +124,12 @@ def api_grafico_detalhes():
     ))
 
     fig.update_layout(
-        title=(...),
-        title_x=0.5,  # ← adicione essa linha também
+        title=(
+            f"Distribuição de gastos — {cidade}<br>"
+            f"<sup>Total estimado: R$ {dados['total']:,.0f}/mês · Ref: {dados['referencia']}</sup>"
+        ),
+        title_x=0.5,
+        title_xanchor="center",
         template="plotly_white",
     )
 
