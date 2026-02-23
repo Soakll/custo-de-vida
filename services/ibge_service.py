@@ -1,15 +1,6 @@
-# services/ibge_service.py
-# Responsável por toda a comunicação com a API do IBGE via sidrapy
-
 import sidrapy
 import pandas as pd
 from datetime import datetime
-
-# ─────────────────────────────────────────────────────────────
-# BASE DE DADOS — POF 2017-2018 (IBGE)
-# Gasto médio mensal per capita em R$ de 2018, por cidade e categoria.
-# Fonte: IBGE, Pesquisa de Orçamentos Familiares 2017-2018
-# ─────────────────────────────────────────────────────────────
 
 POF_BASE = {
     "Belém": {
@@ -135,7 +126,6 @@ POF_BASE = {
     },
 }
 
-# Nome da Região Metropolitana como aparece na API do IBGE
 CIDADES_IBGE = {
     "Belém":            "Belém - PA",
     "Fortaleza":        "Fortaleza - CE",
@@ -162,29 +152,11 @@ GRUPOS = {
     "7629": "Comunicação",
 }
 
-# Data base da POF — usada para calcular quantos meses de IPCA aplicar
 _MES_BASE_POF = datetime(2018, 12, 1)
-
-# Cache do IPCA — evita chamar a API repetidamente na mesma sessão
 _cache_ipca: pd.DataFrame | None = None
 
 
-# ─────────────────────────────────────────────────────────────
-# FUNÇÕES PÚBLICAS
-# ─────────────────────────────────────────────────────────────
-
 def buscar_custo_estimado(nome_cidade: str, pessoas: int = 1) -> dict:
-    """
-    Estima o custo de vida mensal atual de uma cidade em R$,
-    atualizando os dados da POF 2018 com o IPCA acumulado por categoria.
-
-    Args:
-        nome_cidade: Nome da cidade (ex: "São Paulo")
-        pessoas: Número de pessoas na residência
-
-    Returns:
-        Dicionário com cidade, total, categorias e mês de referência.
-    """
     if nome_cidade not in POF_BASE:
         raise ValueError(f"Cidade '{nome_cidade}' não disponível.")
 
@@ -204,17 +176,6 @@ def buscar_custo_estimado(nome_cidade: str, pessoas: int = 1) -> dict:
 
 
 def buscar_cidades_por_orcamento(orcamento: float, pessoas: int = 1) -> list:
-    """
-    Retorna todas as cidades com custo estimado, ordenadas da mais barata
-    para a mais cara, indicando se cabem no orçamento informado.
-
-    Args:
-        orcamento: Valor mensal disponível em R$
-        pessoas: Número de pessoas na residência
-
-    Returns:
-        Lista de dicionários ordenada pelo custo total.
-    """
     resultados = []
 
     for cidade in POF_BASE:
@@ -231,26 +192,16 @@ def buscar_cidades_por_orcamento(orcamento: float, pessoas: int = 1) -> list:
 
 
 def listar_cidades() -> list:
-    """Retorna a lista de cidades disponíveis em ordem alfabética."""
     return sorted(POF_BASE.keys())
 
 
-# ─────────────────────────────────────────────────────────────
-# FUNÇÕES INTERNAS
-# ─────────────────────────────────────────────────────────────
-
 def _carregar_cache_ipca() -> None:
-    """
-    Faz UMA única chamada à API do IBGE buscando o IPCA de todas as
-    cidades e grupos de uma vez, e armazena o resultado em cache.
-    Chamadas subsequentes reutilizam o cache sem nova requisição.
-    """
     global _cache_ipca
 
     if _cache_ipca is not None:
-        return  # já carregado, não precisa buscar de novo
+        return
 
-    hoje = datetime.now()
+    hoje  = datetime.now()
     meses = (hoje.year - _MES_BASE_POF.year) * 12 + (hoje.month - _MES_BASE_POF.month)
 
     print(f"[INFO] Buscando IPCA acumulado ({meses} meses) para todas as cidades...")
@@ -282,14 +233,6 @@ def _carregar_cache_ipca() -> None:
 
 
 def _buscar_ipca_acumulado(nome_cidade: str) -> dict:
-    """
-    Retorna o IPCA acumulado por categoria para uma cidade,
-    calculado a partir do cache carregado pela função acima.
-
-    Returns:
-        Dicionário {nome_categoria: percentual_acumulado}
-        Retorna zeros se os dados não estiverem disponíveis.
-    """
     _carregar_cache_ipca()
 
     zeros = {nome: 0 for nome in GRUPOS.values()}
@@ -297,14 +240,11 @@ def _buscar_ipca_acumulado(nome_cidade: str) -> dict:
     if _cache_ipca is None or _cache_ipca.empty:
         return zeros
 
-    nome_rm = CIDADES_IBGE.get(nome_cidade)
-    if not nome_rm:
-        return zeros
-
-    df_cidade = _cache_ipca[_cache_ipca["D1N"] == nome_rm]
+    nome_rm   = CIDADES_IBGE.get(nome_cidade)
+    df_cidade = _cache_ipca[_cache_ipca["D1N"] == nome_rm] if nome_rm else pd.DataFrame()
 
     if df_cidade.empty:
-        print(f"[AVISO] Cidade '{nome_cidade}' ('{nome_rm}') não encontrada no cache.")
+        print(f"[AVISO] '{nome_cidade}' não encontrada no cache.")
         return zeros
 
     acumulado = {}
@@ -313,7 +253,6 @@ def _buscar_ipca_acumulado(nome_cidade: str) -> dict:
         if df_grupo.empty:
             acumulado[nome_cat] = 0
             continue
-        # Fórmula de inflação acumulada composta
         fator = 1.0
         for variacao in df_grupo["V"]:
             fator *= (1 + variacao / 100)
