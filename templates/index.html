@@ -19,6 +19,11 @@
     .fonte-info              { font-size: 0.78rem; color: #6c757d; }
     .input-erro              { color: #e74c3c !important; border-color: #e74c3c !important; }
     .input-erro::placeholder { color: #e74c3c99; }
+    .nav-tabs .nav-link      { color: #1a3a5c; font-weight: 500; }
+    .nav-tabs .nav-link.active { color: #2980b9; font-weight: 700; border-bottom: 3px solid #2980b9; }
+    .crime-baixo             { color: #27ae60; font-weight: 600; }
+    .crime-medio             { color: #f39c12; font-weight: 600; }
+    .crime-alto              { color: #e74c3c; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -26,93 +31,142 @@
   <div class="header-bg py-4 mb-4 text-center">
     <div class="container">
       <h1 class="fw-bold mb-1">🏙️ Onde posso morar?</h1>
-      <p class="mb-0 opacity-75">Descubra em quais cidades seu orçamento é suficiente para viver</p>
-      <small class="opacity-50">Fonte: IBGE POF 2017-2018 atualizado pelo IPCA · dados.gov.br</small>
+      <p class="mb-0 opacity-75">Custo de vida e segurança pública por cidade</p>
+      <small class="opacity-50">Fonte: IBGE · SINESP/MJ · dados.gov.br</small>
     </div>
   </div>
 
   <div class="container pb-5">
 
-    <div class="card p-4 mb-4">
-      <h5 class="fw-semibold mb-3 text-center">💰 Informe seu orçamento mensal</h5>
-      <div class="row g-3 align-items-end justify-content-center">
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <button class="nav-link active" onclick="trocarAba('custo')">💰 Custo de Vida</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" onclick="trocarAba('crime')">🔐 Criminalidade</button>
+      </li>
+    </ul>
 
-        <div class="col-md-4">
-          <label class="form-label fw-medium">Orçamento mensal (R$)</label>
-          <div class="input-group">
-            <span class="input-group-text">R$</span>
-            <input type="text" id="orcamento" class="form-control form-control-lg"
-                   placeholder="0,00" inputmode="numeric"
-                   oninput="formatarOrcamento(this)"
-                   onblur="validarOrcamento(this)"/>
+    <!-- ── ABA: CUSTO DE VIDA ─────────────────────────────── -->
+    <div id="aba-custo">
+      <div class="card p-4 mb-4">
+        <h5 class="fw-semibold mb-3 text-center">Informe seu orçamento mensal</h5>
+        <div class="row g-3 align-items-end justify-content-center">
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Orçamento mensal (R$)</label>
+            <div class="input-group">
+              <span class="input-group-text">R$</span>
+              <input type="text" id="orcamento" class="form-control form-control-lg"
+                     placeholder="0,00" inputmode="numeric"
+                     oninput="formatarOrcamento(this)" onblur="validarOrcamento(this)"/>
+            </div>
+            <small id="erroOrcamento" class="text-danger d-none">Informe um valor válido.</small>
           </div>
-          <small id="erroOrcamento" class="text-danger d-none">Informe um valor válido.</small>
+          <div class="col-md-3">
+            <label class="form-label fw-medium">Número de pessoas</label>
+            <input type="text" id="pessoas" class="form-control form-control-lg"
+                   placeholder="1 a 20" inputmode="numeric" maxlength="2"
+                   oninput="validarPessoas(this)"/>
+            <small id="erroPessoas" class="text-danger d-none">Digite um número entre 1 e 20.</small>
+          </div>
+          <div class="col-md-3">
+            <button class="btn btn-primary btn-lg w-100 fw-semibold" onclick="consultarCusto()">
+              🔍 Consultar
+            </button>
+          </div>
         </div>
+      </div>
 
-        <div class="col-md-3">
-          <label class="form-label fw-medium">Número de pessoas</label>
-          <input type="text" id="pessoas" class="form-control form-control-lg"
-                 placeholder="1 a 20" inputmode="numeric" maxlength="2"
-                 oninput="validarPessoas(this)"/>
-          <small id="erroPessoas" class="text-danger d-none">Digite um número entre 1 e 20.</small>
+      <div id="loadingCusto" class="text-center py-5 d-none">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Calculando custos e aplicando inflação atual...</p>
+        <small class="text-muted">Na primeira consulta pode levar alguns segundos</small>
+      </div>
+      <div id="erroCusto" class="alert alert-danger d-none"></div>
+
+      <div id="resultadosCusto" class="d-none">
+        <div class="row g-3 mb-4 justify-content-center" id="resumoCusto"></div>
+        <div class="card p-3 mb-4"><div id="graficoComparacao"></div></div>
+        <h5 class="fw-semibold mb-3 text-center">📍 Detalhes por cidade</h5>
+        <div class="row g-3 mb-4 justify-content-center" id="cidadesCardsCusto"></div>
+        <div class="card p-3 d-none" id="painelDetalhes">
+          <div id="graficoDetalhes"></div>
         </div>
-
-        <div class="col-md-3">
-          <button class="btn btn-primary btn-lg w-100 fw-semibold" onclick="consultar()">
-            🔍 Consultar
-          </button>
+        <div class="alert alert-light border mt-4 text-center fonte-info">
+          <strong>📊 Metodologia:</strong> Valores estimados com base na POF 2017-2018 (IBGE),
+          atualizados pelo IPCA acumulado por categoria via API SIDRA/IBGE.
+          Fonte: <a href="https://dados.gov.br" target="_blank">dados.gov.br</a> /
+          <a href="https://sidra.ibge.gov.br" target="_blank">IBGE SIDRA</a>.
         </div>
-
       </div>
     </div>
 
-    <div id="loading" class="text-center py-5 d-none">
-      <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-2 text-muted">Calculando custos e aplicando inflação atual...</p>
-      <small class="text-muted">Na primeira consulta pode levar alguns segundos</small>
-    </div>
-
-    <div id="erro" class="alert alert-danger d-none"></div>
-
-    <div id="resultados" class="d-none">
-
-      <div class="row g-3 mb-4 justify-content-center" id="resumo"></div>
-
-      <div class="card p-3 mb-4">
-        <div id="graficoComparacao"></div>
+    <!-- ── ABA: CRIMINALIDADE ─────────────────────────────── -->
+    <div id="aba-crime" class="d-none">
+      <div class="card p-4 mb-4">
+        <h5 class="fw-semibold mb-3 text-center">Filtrar por tipo de crime</h5>
+        <div class="row g-3 align-items-end justify-content-center">
+          <div class="col-md-5">
+            <label class="form-label fw-medium">Tipo de ocorrência</label>
+            <select id="tipoCrime" class="form-select form-select-lg">
+              <option value="todos">Todos os crimes</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <button class="btn btn-primary btn-lg w-100 fw-semibold" onclick="consultarCrime()">
+              🔍 Consultar
+            </button>
+          </div>
+        </div>
       </div>
 
-      <h5 class="fw-semibold mb-3 text-center">📍 Detalhes por cidade</h5>
-      <div class="row g-3 mb-4 justify-content-center" id="cidadesCards"></div>
-
-      <div class="card p-3 d-none" id="painelDetalhes">
-        <div id="graficoDetalhes"></div>
+      <div id="loadingCrime" class="text-center py-5 d-none">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Baixando dados do SINESP/Ministério da Justiça...</p>
+        <small class="text-muted">Pode levar alguns segundos</small>
       </div>
+      <div id="erroCrime" class="alert alert-danger d-none"></div>
 
-      <div class="alert alert-light border mt-4 text-center fonte-info">
-        <strong>📊 Metodologia:</strong> Valores estimados com base na POF 2017-2018 (IBGE),
-        atualizados pelo IPCA acumulado por categoria via API SIDRA/IBGE.
-        Valores são per capita e representam uma estimativa — custos reais variam
-        conforme estilo de vida, bairro e configuração familiar.
-        Fonte: <a href="https://dados.gov.br" target="_blank">dados.gov.br</a> /
-        <a href="https://sidra.ibge.gov.br" target="_blank">IBGE SIDRA</a>.
+      <div id="resultadosCrime" class="d-none">
+        <h5 class="fw-semibold mb-3 text-center">📊 Por Estado</h5>
+        <div class="card p-3 mb-4"><div id="graficoCrimeUF"></div></div>
+        <div class="row g-3 mb-4 justify-content-center" id="cardsUF"></div>
+
+        <h5 class="fw-semibold mb-3 text-center">🏙️ Por Capital</h5>
+        <div class="card p-3 mb-4"><div id="graficoCrimeCapital"></div></div>
+        <div class="row g-3 mb-4 justify-content-center" id="cardsCapital"></div>
+
+        <div class="alert alert-light border mt-4 text-center fonte-info">
+          <strong>📊 Fonte:</strong> Sistema Nacional de Estatísticas de Segurança Pública (SINESP),
+          Ministério da Justiça e Segurança Pública.
+          Dados: <a href="https://dados.mj.gov.br/dataset/sistema-nacional-de-estatisticas-de-seguranca-publica" target="_blank">dados.mj.gov.br</a>.
+        </div>
       </div>
     </div>
 
   </div>
 
   <script>
-    let pessoasAtuais = 1;
+    let pessoasAtuais  = 1;
+    let crimeCarregado = false;
+
+    function trocarAba(aba) {
+      ["custo", "crime"].forEach(a => {
+        document.getElementById(`aba-${a}`).classList.toggle("d-none", a !== aba);
+      });
+      document.querySelectorAll(".nav-link").forEach((btn, i) => {
+        btn.classList.toggle("active", i === ["custo", "crime"].indexOf(aba));
+      });
+      if (aba === "crime" && !crimeCarregado) consultarCrime();
+    }
 
     function formatarOrcamento(input) {
       let digits = input.value.replace(/\D/g, "");
       if (digits === "") { input.value = ""; return; }
       input.value = (parseInt(digits, 10) / 100).toLocaleString("pt-BR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
       });
       input.classList.remove("input-erro");
-      document.getElementById("erroOrcamento").classList.add("d-none");
     }
 
     function validarOrcamento(input) {
@@ -123,8 +177,8 @@
       }
     }
 
-    function obterValorOrcamento() {
-      const raw = document.getElementById("orcamento").value;
+    function obterOrcamento(id) {
+      const raw = document.getElementById(id).value;
       return parseFloat(raw.replace(/\./g, "").replace(",", ".")) || 0;
     }
 
@@ -133,11 +187,9 @@
       const valor = parseInt(input.value, 10);
       const erro  = document.getElementById("erroPessoas");
       if (input.value === "" || (valor >= 1 && valor <= 20)) {
-        input.classList.remove("input-erro");
-        erro.classList.add("d-none");
+        input.classList.remove("input-erro"); erro.classList.add("d-none");
       } else {
-        input.classList.add("input-erro");
-        erro.classList.remove("d-none");
+        input.classList.add("input-erro"); erro.classList.remove("d-none");
       }
     }
 
@@ -147,8 +199,8 @@
       return valor;
     }
 
-    async function consultar() {
-      const orcamento = obterValorOrcamento();
+    async function consultarCusto() {
+      const orcamento = obterOrcamento("orcamento");
       const pessoas   = obterPessoas();
 
       if (orcamento <= 0) {
@@ -163,47 +215,36 @@
       }
 
       pessoasAtuais = pessoas;
-
-      document.getElementById("loading").classList.remove("d-none");
-      document.getElementById("resultados").classList.add("d-none");
-      document.getElementById("erro").classList.add("d-none");
+      document.getElementById("loadingCusto").classList.remove("d-none");
+      document.getElementById("resultadosCusto").classList.add("d-none");
+      document.getElementById("erroCusto").classList.add("d-none");
       document.getElementById("painelDetalhes").classList.add("d-none");
 
       try {
-        const params = `orcamento=${orcamento}&pessoas=${pessoas}`;
-        const res    = await fetch(`/api/consultar?${params}`).then(r => r.json());
-
+        const res = await fetch(`/api/consultar?orcamento=${orcamento}&pessoas=${pessoas}`).then(r => r.json());
         if (res.erro) throw new Error(res.erro);
 
-        const dados  = res.cidades;
+        const dados   = res.cidades;
         const viaveis = dados.filter(d => d.cabe_no_orcamento).length;
 
-        document.getElementById("resumo").innerHTML = `
-          <div class="col-md-4">
-            <div class="card p-3 text-center">
-              <div class="fs-1 fw-bold text-success">${viaveis}</div>
-              <div class="text-muted">cidade(s) dentro do orçamento</div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card p-3 text-center">
-              <div class="fs-1 fw-bold text-danger">${dados.length - viaveis}</div>
-              <div class="text-muted">cidade(s) acima do orçamento</div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card p-3 text-center">
-              <div class="fs-4 fw-bold text-primary">
-                R$ ${orcamento.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
-              <div class="text-muted">seu orçamento mensal</div>
-            </div>
-          </div>`;
+        document.getElementById("resumoCusto").innerHTML = `
+          <div class="col-md-4"><div class="card p-3 text-center">
+            <div class="fs-1 fw-bold text-success">${viaveis}</div>
+            <div class="text-muted">cidade(s) dentro do orçamento</div>
+          </div></div>
+          <div class="col-md-4"><div class="card p-3 text-center">
+            <div class="fs-1 fw-bold text-danger">${dados.length - viaveis}</div>
+            <div class="text-muted">cidade(s) acima do orçamento</div>
+          </div></div>
+          <div class="col-md-4"><div class="card p-3 text-center">
+            <div class="fs-4 fw-bold text-primary">R$ ${orcamento.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+            <div class="text-muted">seu orçamento mensal</div>
+          </div></div>`;
 
         const gc = JSON.parse(res.grafico);
         Plotly.newPlot("graficoComparacao", gc.data, gc.layout, { responsive: true });
 
-        document.getElementById("cidadesCards").innerHTML = dados.map(d => `
+        document.getElementById("cidadesCardsCusto").innerHTML = dados.map(d => `
           <div class="col-md-6 col-lg-4">
             <div class="card p-3 cidade-card ${d.cabe_no_orcamento ? "border-success border-2" : ""}"
                  onclick="verDetalhes('${d.cidade}')">
@@ -220,20 +261,96 @@
               <div class="${d.sobra >= 0 ? "sobra-pos" : "sobra-neg"}">
                 ${d.sobra >= 0
                   ? `Sobram R$ ${d.sobra.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                  : `Faltam R$ ${Math.abs(d.sobra).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                }
+                  : `Faltam R$ ${Math.abs(d.sobra).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               </div>
               <small class="text-muted mt-1">Clique para ver detalhes por categoria</small>
             </div>
           </div>`).join("");
 
-        document.getElementById("resultados").classList.remove("d-none");
-
+        document.getElementById("resultadosCusto").classList.remove("d-none");
       } catch (erro) {
-        document.getElementById("erro").textContent = `Erro: ${erro.message}`;
-        document.getElementById("erro").classList.remove("d-none");
+        document.getElementById("erroCusto").textContent = `Erro: ${erro.message}`;
+        document.getElementById("erroCusto").classList.remove("d-none");
       } finally {
-        document.getElementById("loading").classList.add("d-none");
+        document.getElementById("loadingCusto").classList.add("d-none");
+      }
+    }
+
+    async function consultarCrime() {
+      const tipo = document.getElementById("tipoCrime").value;
+
+      document.getElementById("loadingCrime").classList.remove("d-none");
+      document.getElementById("resultadosCrime").classList.add("d-none");
+      document.getElementById("erroCrime").classList.add("d-none");
+
+      try {
+        const [resUF, resCapital] = await Promise.all([
+          fetch(`/api/crime/uf?tipo=${encodeURIComponent(tipo)}`).then(r => r.json()),
+          fetch(`/api/crime/capitais?tipo=${encodeURIComponent(tipo)}`).then(r => r.json()),
+        ]);
+
+        if (resUF.erro)      throw new Error(resUF.erro);
+        if (resCapital.erro) throw new Error(resCapital.erro);
+
+        if (!crimeCarregado && resUF.tipos.length > 0) {
+          const sel = document.getElementById("tipoCrime");
+          sel.innerHTML = '<option value="todos">Todos os crimes</option>';
+          resUF.tipos.forEach(t => {
+            const op = document.createElement("option");
+            op.value = t; op.textContent = t;
+            sel.appendChild(op);
+          });
+          crimeCarregado = true;
+        }
+
+        const gcUF = JSON.parse(resUF.grafico);
+        Plotly.newPlot("graficoCrimeUF", gcUF.data, gcUF.layout, { responsive: true });
+
+        const gcCap = JSON.parse(resCapital.grafico);
+        Plotly.newPlot("graficoCrimeCapital", gcCap.data, gcCap.layout, { responsive: true });
+
+        const maxUF  = Math.max(...resUF.ranking.map(r => r.total));
+        const maxCap = Math.max(...resCapital.ranking.map(r => r.total));
+
+        function nivelCor(total, max) {
+          const p = total / max;
+          if (p < 0.33) return "crime-baixo";
+          if (p < 0.66) return "crime-medio";
+          return "crime-alto";
+        }
+
+        document.getElementById("cardsUF").innerHTML = resUF.ranking.map((r, i) => `
+          <div class="col-md-6 col-lg-4">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-start mb-1">
+                <h6 class="fw-bold mb-0">${r.uf}</h6>
+                <span class="badge bg-secondary">#${i + 1}</span>
+              </div>
+              <div class="fs-5 fw-bold ${nivelCor(r.total, maxUF)}">
+                ${r.total.toLocaleString("pt-BR")} ocorrências
+              </div>
+            </div>
+          </div>`).join("");
+
+        document.getElementById("cardsCapital").innerHTML = resCapital.ranking.map((r, i) => `
+          <div class="col-md-6 col-lg-4">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-start mb-1">
+                <h6 class="fw-bold mb-0">${r.cidade} <small class="text-muted">${r.uf}</small></h6>
+                <span class="badge bg-secondary">#${i + 1}</span>
+              </div>
+              <div class="fs-5 fw-bold ${nivelCor(r.total, maxCap)}">
+                ${r.total.toLocaleString("pt-BR")} ocorrências
+              </div>
+            </div>
+          </div>`).join("");
+
+        document.getElementById("resultadosCrime").classList.remove("d-none");
+      } catch (erro) {
+        document.getElementById("erroCrime").textContent = `Erro: ${erro.message}`;
+        document.getElementById("erroCrime").classList.remove("d-none");
+      } finally {
+        document.getElementById("loadingCrime").classList.add("d-none");
       }
     }
 
@@ -241,13 +358,10 @@
       const painel = document.getElementById("painelDetalhes");
       painel.classList.remove("d-none");
       painel.scrollIntoView({ behavior: "smooth" });
-
       const res = await fetch(
         `/api/grafico/detalhes?cidade=${encodeURIComponent(cidade)}&pessoas=${pessoasAtuais}`
       ).then(r => r.json());
-
       if (res.erro) return;
-
       const config = JSON.parse(res.grafico);
       Plotly.newPlot("graficoDetalhes", config.data, config.layout, { responsive: true });
     }
